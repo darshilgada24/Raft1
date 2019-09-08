@@ -1,5 +1,12 @@
 package mapreduce
 
+import (
+	"os"
+	"fmt"
+	"encoding/json"
+	"sort"
+)
+
 func doReduce(
 	jobName string, // the name of the whole MapReduce job
 	reduceTask int, // which reduce task this is
@@ -44,4 +51,51 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
+
+	keyvalue := make(map[string]([]string) )
+	for i:= 0; i< nMap;i++ {
+
+		mapFile, err := os.Open(reduceName(jobName, i, reduceTask))
+		if err != nil {
+			fmt.Println("Something went wrong while reading map files in doReduce")
+		}
+
+		dec := json.NewDecoder(mapFile)
+
+		for dec.More() {
+			var kv KeyValue
+			err := dec.Decode(&kv)
+			if err != nil {
+				fmt.Println("Error while Decoding")
+			}
+			keyvalue[kv.Key] = append(keyvalue[kv.Key], kv.Value)
+		}
+		mapFile.Close()
+	}
+        fmt.Println("KeyValue reading complete")
+		keys := make([]string, len(keyvalue))
+		i := 0
+		for key, _:= range keyvalue {
+			keys[i] = key
+			i = i + 1
+		}
+
+	    fmt.Println("KeyValue reading complete")
+		sort.Strings(keys)
+
+		outputFileName,err := os.OpenFile(outFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if err!= nil {
+			fmt.Println("Something went wrong while opening out File")
+		}
+		enc := json.NewEncoder(outputFileName)
+
+		fmt.Println(outFile)
+
+		for _, key :=  range keys {
+			enc.Encode(KeyValue{key, reduceF(key,  keyvalue[key])})
+		}
+
+		outputFileName.Close()
+
+
 }
