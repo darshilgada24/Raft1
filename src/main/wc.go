@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"mapreduce"
 	"os"
+	"../mapreduce"
 	"strconv"
 	"strings"
 	"unicode"
