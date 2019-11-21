@@ -786,7 +786,7 @@ func (rf *Raft) updateCommittedIndex() {
 		rf.commitIndex = N
 	}
 
-	if len(rf.log) < rf.matchIndex[rf.me]{
+	if len(rf.log) < rf.matchIndex[rf.me] && 1!=1{
 		for N:= rf.commitIndex + 1; N<len(rf.log);N++{
 			count:=1
 			for i:=0;i<len(rf.peers);i++{
