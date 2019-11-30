@@ -24,18 +24,24 @@ const NShards = 10
 // Please don't change this.
 type Config struct {
 	Num    int              // config number
-	Shards [NShards]int     // shard -> gid
+	Shards [NShards]int     // shard -> gid means shards value will correspong to groupID
 	Groups map[int][]string // gid -> servers[]
 }
 
 const (
 	OK = "OK"
+	ErrNoKey = "ErrNoKey"
+	Duplicate = "Duplicate"
+	TimedOut = "Timed Out"
 )
 
 type Err string
 
 type JoinArgs struct {
 	Servers map[int][]string // new GID -> servers mappings
+	//new
+	ClientId int64
+	RequestNo int
 }
 
 type JoinReply struct {
@@ -45,6 +51,9 @@ type JoinReply struct {
 
 type LeaveArgs struct {
 	GIDs []int
+	//new
+	ClientId int64
+	RequestNo int
 }
 
 type LeaveReply struct {
@@ -55,6 +64,9 @@ type LeaveReply struct {
 type MoveArgs struct {
 	Shard int
 	GID   int
+	//new
+	ClientId int64
+	RequestNo int
 }
 
 type MoveReply struct {
@@ -64,6 +76,9 @@ type MoveReply struct {
 
 type QueryArgs struct {
 	Num int // desired config number
+	//new
+	ClientId int64
+	RequestNo int
 }
 
 type QueryReply struct {
