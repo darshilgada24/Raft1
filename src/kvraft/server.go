@@ -1,7 +1,6 @@
 package raftkv
 
 import (
-	"fmt"
 	"labgob"
 	"labrpc"
 	"log"
@@ -48,35 +47,35 @@ type Op struct {
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	// Your code here.
 	//op:= Op{Key:args.Key,TypeOfCommand:"Get",ClientId:args.ClientId,RequestNo:args.RequestNo}
-	fmt.Println("Inside Get Procedure call")
+	//fmt.Println("Inside Get Procedure call")
 	_, _, isLeader := kv.rf.Start(Op{args.Key, "", "Get", args.RequestNo, args.ClientId})
 
 	if isLeader == false {
-		fmt.Println("Wrong Leader for Get")
+		//fmt.Println("Wrong Leader for Get")
 		reply.WrongLeader = true
 	} else {
 			kv.mu.Lock()
 		    _,clientIdPresent := kv.ClientToResponseMapping[args.ClientId]
 
 		    if clientIdPresent == false {
-				fmt.Println("Client ID not present for get")
+				//fmt.Println("Client ID not present for get")
 		    	ch:= make(chan Response,1)
 		    	kv.ClientToResponseMapping[args.ClientId] = ch
 			}
+			ch := kv.ClientToResponseMapping[args.ClientId] //To remove race
 		    kv.mu.Unlock()
 			select {
-			case  response :=<- kv.ClientToResponseMapping[args.ClientId]:
+			case  response :=<- ch:
 				 	kv.mu.Lock()
-
 				 	if response.RequestNo == args.RequestNo && response.ClientId == args.ClientId && args.Key == response.Key{ //Only consider requests which have same client ID and request No
 				 	// otherwise incorrect result is returned
 				 		value, keyPresent := kv.DataStore[response.Key]
 					 	if keyPresent == false {
-							fmt.Println("Key not present")
+							//fmt.Println("Key not present")
 						 	reply.WrongLeader = false
 						 	reply.Err = ErrNoKey
 					 	} else {
-						 	fmt.Println("Key Present for Get")
+						 	//fmt.Println("Key Present for Get")
 						 	reply.WrongLeader = false
 						 	reply.Value = value
 						 	reply.Err = OK
@@ -91,34 +90,38 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	// Your code here.
-	fmt.Println("Put Append Procedure")
+	//fmt.Println("Put Append Procedure")
 	_, _, isLeader := kv.rf.Start(Op{args.Key, args.Value, args.Op, args.RequestNo, args.ClientId})
 	if isLeader == false {
-		fmt.Println("Wrong leader for PutAppend")
+		//fmt.Println("Wrong leader for PutAppend")
 		reply.WrongLeader = true
 	}else{
 		kv.mu.Lock()
-		fmt.Println("leader for PutAppend")
+		//fmt.Println("leader for PutAppend")
 		_, clientIDPresent := kv.ClientToResponseMapping[args.ClientId]
 
 		if clientIDPresent == false {
-			fmt.Println("Client ID not present for PutAppend")
+			//fmt.Println("Client ID not present for PutAppend")
 			ch := make(chan Response, 1)
 			kv.ClientToResponseMapping[args.ClientId] = ch
 		}
+
+		ch := kv.ClientToResponseMapping[args.ClientId]
 		kv.mu.Unlock()
 
 		select {
-		case  response:= <- kv.ClientToResponseMapping[args.ClientId]:
+		case  response:= <- ch:
+			kv.mu.Lock()
 			if response.RequestNo == args.RequestNo && args.ClientId == response.ClientId && response.Key == args.Key{
 				reply.WrongLeader = false
 				reply.Err = OK
-				fmt.Println("No Duplicate")
+				//fmt.Println("No Duplicate")
 			} else {
-				fmt.Println("Duplicate")
+				//fmt.Println("Duplicate")
 				reply.WrongLeader = false
 				reply.Err = Duplicate
 			}
+			kv.mu.Unlock()
 		case <- time.After(1 * time.Second): // Unreliable fails if we dont have this
 			reply.Err = TimedOut
 		}
@@ -145,16 +148,6 @@ type Response struct {
 	ClientId int64
 	Command string
 	Key string
-}
-
-func (kv *KVServer) put(ClientID int64,createIfNotExists bool) chan Response{
-	kv.mu.Lock()
-	defer kv.mu.Unlock()
-	if _, ok := kv.ClientToResponseMapping[ClientID]; !ok {
-		if !createIfNotExists {return nil}
-		kv.ClientToResponseMapping[ClientID] = make(chan Response,1)
-	}
-	return kv.ClientToResponseMapping[ClientID]
 }
 
 //
@@ -193,7 +186,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	go func() {
 		for{
 			msg := <- kv.applyCh
-			fmt.Println("Got applyCH")
+			//fmt.Println("Got applyCH")
 			op := msg.Command.(Op)
 			response := Response{value:"",RequestNo:op.RequestNo,ClientId:op.ClientId,Key:op.Key}
 			//For Get directly send the response
@@ -207,7 +200,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 				if duplicatePresent == true{
 					//check whether requestNo stored is older or not if it is older then its not a duplicate respone
 					if requstNoStored >= op.RequestNo {
-						fmt.Println("Duplicate detected")
+						//fmt.Println("Duplicate detected")
 						response.isDuplicate = true
 					} else if requstNoStored < op.RequestNo{
 						kv.mu.Lock()
@@ -239,7 +232,6 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 				default: // if you remove this it goes into deadlock
 					kv.mu.Unlock()
 			}
-
 		}
 	}()
 

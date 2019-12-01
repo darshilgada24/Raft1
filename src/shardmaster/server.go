@@ -49,9 +49,10 @@ func (sm *ShardMaster) Join(args *JoinArgs, reply *JoinReply) {
 			ch:= make(chan Op,1)
 			sm.ClientToResponseMapping[args.ClientId] = ch
 		}
+		ch := sm.ClientToResponseMapping[args.ClientId] //To remove race
 		sm.mu.Unlock()
 		select {
-		case  response :=<- sm.ClientToResponseMapping[args.ClientId]:
+		case  response :=<- ch:
 			sm.mu.Lock()
 
 			if response.RequestNo == args.RequestNo && response.ClientId == args.ClientId && response.TypeOfCommand == "Join"{ //Only consider requests which have same client ID and request No
@@ -83,9 +84,10 @@ func (sm *ShardMaster) Leave(args *LeaveArgs, reply *LeaveReply) {
 			ch:= make(chan Op,1)
 			sm.ClientToResponseMapping[args.ClientId] = ch
 		}
+		ch := sm.ClientToResponseMapping[args.ClientId] //To remove race
 		sm.mu.Unlock()
 		select {
-		case  response :=<- sm.ClientToResponseMapping[args.ClientId]:
+		case  response :=<- ch:
 			sm.mu.Lock()
 
 			if response.RequestNo == args.RequestNo && response.ClientId == args.ClientId && response.TypeOfCommand == "Leave"{ //Only consider requests which have same client ID and request No
@@ -117,9 +119,10 @@ func (sm *ShardMaster) Move(args *MoveArgs, reply *MoveReply) {
 			ch:= make(chan Op,1)
 			sm.ClientToResponseMapping[args.ClientId] = ch
 		}
+		ch := sm.ClientToResponseMapping[args.ClientId] //To remove race
 		sm.mu.Unlock()
 		select {
-		case  response :=<- sm.ClientToResponseMapping[args.ClientId]:
+		case  response :=<- ch:
 			sm.mu.Lock()
 
 			if response.RequestNo == args.RequestNo && response.ClientId == args.ClientId && response.TypeOfCommand == "Move"{ //Only consider requests which have same client ID and request No
@@ -159,9 +162,10 @@ func (sm *ShardMaster) Query(args *QueryArgs, reply *QueryReply) {
 			ch:= make(chan Op,1)
 			sm.ClientToResponseMapping[args.ClientId] = ch
 		}
+		ch := sm.ClientToResponseMapping[args.ClientId] //To remove race
 		sm.mu.Unlock()
 		select {
-		case response :=<- sm.ClientToResponseMapping[args.ClientId]:
+		case response :=<- ch:
 			sm.mu.Lock()
 
 			if response.RequestNo == args.RequestNo && response.ClientId == args.ClientId && response.TypeOfCommand == "Query"{ //Only consider requests which have same client ID and request No
@@ -427,9 +431,10 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister)
 				sm.mu.Lock()
 				select {
 				case sm.ClientToResponseMapping[op.ClientId] <- op:
-				default: // if you remove this it goes into deadlock
+					sm.mu.Unlock()
+				default:
+					sm.mu.Unlock()// if you remove this it goes into deadlock
 				}
-				sm.mu.Unlock()
 			}
 		}
 	}()
