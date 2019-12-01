@@ -19,7 +19,6 @@ package raft
 
 import (
 	"bytes"
-	"fmt"
 	"labgob"
 	"labrpc"
 	"math/rand"
@@ -177,8 +176,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	//fmt.Printf("Server %d, in RequestVote", rf.me)
 	//fmt.Println()
-	//
-	////fmt.Println("Requesting Vote in RequestVote")
+
+	//fmt.Println("Requesting Vote in RequestVote")
 	//fmt.Printf("Args Term %d, in RequestVote for Server %d", args.Term,rf.me)
 	//fmt.Println()
 	//fmt.Printf("Server Term %d, in RequestVote for Server %d", rf.currentTerm,rf.me)
@@ -237,8 +236,9 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 			rf.votedFor = args.CandidateId
 		}
 
-		rf.persist()
+		//rf.persist()
 	}
+	rf.persist()
 	//fmt.Println("Request Vote completed")
 	rf.mu.Unlock()
 }
@@ -300,8 +300,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.mu.Lock()
 	//fmt.Printf("Server %d, in Append Entries", rf.me)
 	//fmt.Println()
-	//
-	////fmt.Println("Requesting Vote in RequestVote")
+
+	//fmt.Println("Requesting Vote in RequestVote")
 	//fmt.Printf("Leaders Term is %d, for Server %d", args.Term,rf.me)
 	//fmt.Println()
 	//fmt.Printf("Leader is %d for Server %d", args.LeaderId,rf.me)
@@ -347,7 +347,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 					term := rf.log[args.PrevLogIndex].Term
 					for reply.NextTryIndex = args.PrevLogIndex - 1;
 						reply.NextTryIndex > 1 && rf.log[reply.NextTryIndex].Term == term;
-						reply.NextTryIndex-- {}
+					reply.NextTryIndex-- {}
 
 					//reply.NextTryIndex++
 					//fmt.Printf("NextTryIndex is %d and log is not uptoDate ", reply.NextTryIndex)
@@ -431,7 +431,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 					term := rf.log[args.PrevLogIndex].Term
 					for reply.NextTryIndex = args.PrevLogIndex - 1;
 						reply.NextTryIndex > 1 && rf.log[reply.NextTryIndex].Term == term;
-						reply.NextTryIndex-- {}
+					reply.NextTryIndex-- {}
 
 					//reply.NextTryIndex++
 					//fmt.Printf("NextTryIndex is %d and args.Entries is null ", reply.NextTryIndex)
@@ -444,8 +444,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 				//rf.isLeaderElection = false
 			}
 		}
-		rf.persist()
+		//rf.persist()
 	}
+	rf.persist()
 	rf.mu.Unlock()
 }
 
@@ -528,7 +529,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.commitIndex = 0
 	rf.lastApplied = 0
-	rf.heartbeat = make(chan bool)
+	rf.heartbeat = make(chan bool,1)
 	rf.election = make(chan bool)
 	rf.log = make([] LogEntry,1)
 	rf.applyCh = applyCh
@@ -541,19 +542,17 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
-
 	go func() {
-
 		for {
-
-			//rf.mu.Lock()
-			if rf.state == "follower"{
+			rf.mu.Lock()
+			if rf.state == "follower" {
+				//rf.mu.Lock()
 				rf.checkfollower()
-			}  //Repeatedly trigger timeout if state is in follower state and heartbeat received is false
-			if rf.state == "candidate"{
+			} else if rf.state == "candidate" {
+				//rf.mu.Lock()
 				rf.checkCandidate()
-			} //Repeatedly check for candidate state
-			if rf.state == "leader"{
+			} else if rf.state == "leader" {
+				//rf.mu.Lock()
 				//fmt.Println("Inside leader")
 				rf.checkLeader()
 			}
@@ -569,11 +568,13 @@ func(rf * Raft) checkLeader(){
 	//fmt.Printf("Server %d, Leader", rf.me)
 	//fmt.Println()
 
+	//rf.mu.Unlock()
 	rf.persist()
 	for index:=  range rf.peers{
 		if index != rf.me {
-			//fmt.Println("Inside loop of leader")
-			rf.mu.Lock()
+			//fmt.Printf("Inside loop of leader %d",rf.me)
+			//fmt.Println()
+			//rf.mu.Lock()
 			//fmt.Printf("PrevLogIndex,%d",rf.nextIndex[index]-1)
 			//fmt.Println()
 			args := AppendEntriesArgs{
@@ -584,14 +585,15 @@ func(rf * Raft) checkLeader(){
 				PrevLogIndex: rf.log[rf.nextIndex[index]-1].LogIndex,
 				PrevLogTerm:  rf.log[rf.nextIndex[index]-1].Term}
 			reply:= AppendEntriesReply{}
-			rf.mu.Unlock()
+			//rf.mu.Unlock()
 
 			go func(index int){
 				ok:= rf.sendAppendEntries(index,&args,&reply)
 				if ok {
+					rf.mu.Lock()
 					if reply.Success == true{
-						rf.mu.Lock()
-						//fmt.Println("Success for leader")
+						//fmt.Printf("Success for leader %d",rf.me)
+						//fmt.Println()
 						if len(args.Entries) > 0 && args.Term == rf.currentTerm {
 							//fmt.Printf("Inside args.Entries > 0 and terms are same for index %d",index)
 							//fmt.Println()
@@ -604,13 +606,14 @@ func(rf * Raft) checkLeader(){
 							rf.updateCommittedIndex()
 							rf.applyMesaages();
 						}
-						rf.mu.Unlock()
+						//rf.mu.Unlock()
 					} else {
-						//fmt.Printf("Inside else for index %d",index)
+						//fmt.Printf("Inside else for server %d",rf.me)
 						//fmt.Println()
 						if reply.Term == rf.currentTerm { //Terms were same but index mismatched
-							rf.mu.Lock()
-							//fmt.Println("Inside else and Terms are same")
+							//rf.mu.Lock()
+							//fmt.Printf("Inside else and Terms are same for server %d",rf.me)
+							//fmt.Println()
 							//if reply.NextTryIndex > 0{
 							//	rf.nextIndex[index] = reply.NextTryIndex
 							//}
@@ -623,22 +626,33 @@ func(rf * Raft) checkLeader(){
 
 							//fmt.Printf("Next Index: %d",rf.nextIndex[index] )
 							//fmt.Println()
-							rf.mu.Unlock()
+							//rf.mu.Unlock()
 						} else { //higher term found
-							rf.mu.Lock()
+							//rf.mu.Lock()
 							//fmt.Printf("Server %d, turned to follower", rf.me)
 							//fmt.Println()
 							rf.state = "follower"
-							rf.heartbeat <- true
-							rf.mu.Unlock()
+							//rf.mu.Unlock()
+							//rf.heartbeat <- true //created lots of problems
+							//rf.mu.Unlock()
 						}
 					}
+					rf.mu.Unlock()
 				}
 			}(index)
 		}
-
 	}
-	time.Sleep(time.Millisecond * 200) // pause for loops as advised in lab description
+	rf.mu.Unlock()
+	//select {
+	//case <-rf.heartbeat: //if heartbeat received before winning election change to follower
+	//	//fmt.Println("Candidate Heartbeat received")
+	//	//rf.mu.Lock()
+	//	fmt.Printf("Server %d, Leader received heartbeat changing to follower", rf.me)
+	//	fmt.Println()
+	//	rf.state = "follower"
+	////default:
+	//}
+	time.Sleep(time.Millisecond * 100) // pause for loops as advised in lab description
 }
 
 func (rf *Raft) checkfollower(){
@@ -646,12 +660,12 @@ func (rf *Raft) checkfollower(){
 	//rf.mu.Lock()
 	//fmt.Printf("Server %d, follower", rf.me)
 	//fmt.Println()
-	//rf.mu.Unlock()
+	rf.mu.Unlock()
 	select {
 	case <-rf.heartbeat:
 		//fmt.Printf("Server %d, follower heartbeat received", rf.me)
 		//fmt.Println()
-	case <-time.After(time.Duration(300+rand.Intn(200)) * time.Millisecond): //Referred https://telliott.io/2016/09/29/three-ish-ways-to-implement-timeouts-in-go.html
+	case <-time.After(time.Duration(300+rand.Intn(300)) * time.Millisecond): //Referred https://telliott.io/2016/09/29/three-ish-ways-to-implement-timeouts-in-go.html
 		rf.mu.Lock()
 		//fmt.Printf("Server %d, follower timeout  and changed to candidate", rf.me)
 		//fmt.Println()
@@ -663,19 +677,20 @@ func (rf *Raft) checkfollower(){
 }
 
 func (rf *Raft) checkCandidate() {
+	//rf.mu.Unlock()
 	//rf.mu.Lock()
 	//fmt.Println("Inside Candidate")
 	//defer rf.mu.Unlock()
 	//
 	// fmt.Println("Inside candidate")
-	rf.mu.Lock()
+	//rf.mu.Lock()
 	//fmt.Printf("Server %d, is candidate", rf.me)
 	//fmt.Println()
 	//fmt.Println("Inside Lock")
 	rf.currentTerm = rf.currentTerm + 1 //Update currentTerm
 	rf.votedFor = rf.me //Vote for itself
 	//fmt.Println("Inside candidate2")
-	rf.mu.Unlock()
+	//rf.mu.Unlock()
 
 	args:= RequestVoteArgs{
 		Term:         rf.currentTerm,
@@ -700,20 +715,20 @@ func (rf *Raft) checkCandidate() {
 						//fmt.Printf("Server %d, Vote Granted", index)
 						//fmt.Println()
 						voteCount = voteCount + 1 //if vote granted increment by  1
-						rf.mu.Unlock()
+						//rf.mu.Unlock()
 						if voteCount > len(rf.peers) / 2 && rf.state == "candidate" { //if majority votes received and state still candidate change to leader
-							rf.mu.Lock()
+							//rf.mu.Lock()
 							rf.state = "leader"
 							//fmt.Printf("Server %d, changed to leader and won election", rf.me)
 							//fmt.Println()
 							//fmt.Println("Election set true")
 							rf.election <- true //Election done
-							rf.mu.Unlock()
+							//rf.mu.Unlock()
 						}
-						//rf.mu.Unlock()
+						rf.mu.Unlock()
 					} else {
 						//fmt.Println("Vote Not Granted")
-						//rf.mu.Lock()
+						rf.mu.Lock()
 						if reply.Term > rf.currentTerm && rf.state == "candidate"{ //if reply term greater change to follower
 							//fmt.Println("Changing to follower")
 							rf.currentTerm = reply.Term //set current term of server with latest term
@@ -722,14 +737,14 @@ func (rf *Raft) checkCandidate() {
 							rf.state = "follower"
 							rf.votedFor = -1
 						}
-						//rf.mu.Lock()
+						rf.mu.Unlock()
 					}
 				}
 				//rf.mu.Unlock()
 			}(index)
 		}
 	}
-	//rf.mu.Unlock()
+	rf.mu.Unlock()
 
 	select {
 	case <-rf.heartbeat: //if heartbeat received before winning election change to follower
@@ -739,7 +754,7 @@ func (rf *Raft) checkCandidate() {
 		//fmt.Println()
 		rf.state = "follower"
 		rf.mu.Unlock()
-	case <-time.After(time.Duration(300+rand.Intn(200)) * time.Millisecond): //if timedout before winning election start again
+	case <-time.After(time.Duration(300+rand.Intn(300)) * time.Millisecond): //if timedout before winning election start again
 		//fmt.Println("Candidate Timedout")
 		//fmt.Printf("Server %d, candidate timedout", rf.me)
 		//fmt.Println()
@@ -795,7 +810,7 @@ func (rf *Raft) updateCommittedIndex() {
 				}
 			}
 
-			fmt.Println(count)
+			//fmt.Println(count)
 
 			if count > len(rf.peers)/2 {
 				rf.commitIndex = N
@@ -822,9 +837,7 @@ func (rf *Raft) timeout(){
 	go func(){
 		time.Sleep(time.Duration(300+rand.Intn(200)) * time.Millisecond) //timout of more than 300ms because the tester limits you to 10 heartbeats per second
 		timeout <- true
-		fmt.Println("Reset Timeout in timeout:")
+		//fmt.Println("Reset Timeout in timeout:")
 	} ()
 
 }
-
-
