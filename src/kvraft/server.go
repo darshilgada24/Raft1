@@ -2,8 +2,6 @@ package raftkv
 
 import (
 	"fmt"
-	//"fmt"
-	//"fmt"
 	"labgob"
 	"labrpc"
 	"log"
@@ -149,6 +147,16 @@ type Response struct {
 	Key string
 }
 
+func (kv *KVServer) put(ClientID int64,createIfNotExists bool) chan Response{
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	if _, ok := kv.ClientToResponseMapping[ClientID]; !ok {
+		if !createIfNotExists {return nil}
+		kv.ClientToResponseMapping[ClientID] = make(chan Response,1)
+	}
+	return kv.ClientToResponseMapping[ClientID]
+}
+
 //
 // servers[] contains the ports of the set of
 // servers that will cooperate via Raft to
@@ -223,10 +231,14 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 					kv.mu.Unlock()
 					}
 			}
-				select {
-					case kv.ClientToResponseMapping[op.ClientId] <- response:
-					default: // if you remove this it goes into deadlock
-				}
+			kv.mu.Lock()
+			//defer kv.mu.Unlock()
+			select {
+				case kv.ClientToResponseMapping[op.ClientId] <- response:
+					kv.mu.Unlock()
+				default: // if you remove this it goes into deadlock
+					kv.mu.Unlock()
+			}
 
 		}
 	}()
