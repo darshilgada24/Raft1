@@ -424,10 +424,12 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister)
 					}
 				sm.mu.Unlock()
 
+				sm.mu.Lock()
 				select {
 				case sm.ClientToResponseMapping[op.ClientId] <- op:
 				default: // if you remove this it goes into deadlock
 				}
+				sm.mu.Unlock()
 			}
 		}
 	}()
