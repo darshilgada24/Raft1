@@ -122,7 +122,7 @@ func (rf *Raft) persist() {
 	e := labgob.NewEncoder(w)
 	e.Encode(rf.log)
 	e.Encode(rf.currentTerm)
-	//e.Encode((rf.votedFor)) //unreliable does not work after this addition
+	//e.Encode((rf.votedFor))
 	data := w.Bytes()
 	rf.persister.SaveRaftState(data)
 }
@@ -380,8 +380,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 				//append new entries
 				for i := 0; i < len(args.Entries); i++ {
-					newLog := args.Entries[i]
-					rf.log = append(rf.log, newLog)
+					rf.log = append(rf.log, args.Entries[i])
 					//fmt.Printf("Entries appended %d for Server %d",args.Entries[i],rf.me)
 					//fmt.Println()
 				}
@@ -660,7 +659,6 @@ func(rf * Raft) checkLeader(){
 							//rf.mu.Unlock()
 							//rf.heartbeat <- true //created lots of problems
 							//rf.mu.Unlock()
-							rf.persist()
 						}
 					}
 					rf.mu.Unlock()
@@ -696,7 +694,6 @@ func (rf *Raft) checkfollower(){
 		//fmt.Printf("Server %d, follower timeout  and changed to candidate", rf.me)
 		//fmt.Println()
 		rf.state = "candidate"
-		rf.persist()
 		rf.mu.Unlock()
 	}
 
@@ -727,7 +724,7 @@ func (rf *Raft) checkCandidate() {
 	}
 	voteCount:= 1
 
-	//rf.persist()
+	rf.persist()
 	for index:=  range rf.peers {
 		if index!=rf.me{
 			go func(index int){
@@ -763,7 +760,6 @@ func (rf *Raft) checkCandidate() {
 							//fmt.Println()
 							rf.state = "follower"
 							rf.votedFor = -1
-							rf.persist()
 						}
 						rf.mu.Unlock()
 					}
@@ -793,10 +789,10 @@ func (rf *Raft) checkCandidate() {
 		rf.state = "leader"
 		//fmt.Printf("Server %d, changed to leader and won election", rf.me)
 		//fmt.Println()
+		rf.persist()
 		rf.updateIndexes()
 
 		//rf.checkLeader()
-		rf.persist()
 		rf.mu.Unlock()
 	}
 
